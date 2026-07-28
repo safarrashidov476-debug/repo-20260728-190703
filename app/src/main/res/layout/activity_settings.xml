@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="GitHub Personal Access Token"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/edtGithubToken"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="ghp_..."
+        android:inputType="textPassword" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Gemini API kaliti"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/edtGeminiKey"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="AIza..."
+        android:inputType="textPassword" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Gemini modeli"
+        android:textStyle="bold" />
+
+    <Spinner
+        android:id="@+id/spinnerModel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <Button
+        android:id="@+id/btnSave"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Saqlash" />
+
+    <TextView
+        android:id="@+id/txtStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" />
+
+</LinearLayout>
