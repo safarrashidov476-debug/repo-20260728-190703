@@ -11,8 +11,8 @@ import java.util.concurrent.TimeUnit
 class GitHubClient(private val token: String) {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
     private val jsonMedia = "application/json".toMediaType()
@@ -25,68 +25,51 @@ class GitHubClient(private val token: String) {
             .addHeader("Authorization", "token $token")
             .addHeader("Accept", "application/vnd.github+json")
 
-        val rb = body?.toString()?.toRequestBody(jsonMedia)
+        val rb = if (body != null) body.toString().toRequestBody(jsonMedia) 
+                 else if (method == "POST" || method == "PUT" || method == "PATCH") "{}".toRequestBody(jsonMedia)
+                 else null
 
         when (method) {
             "GET" -> builder.get()
-            "POST" -> builder.post(rb ?: JSONObject().toString().toRequestBody(jsonMedia))
-            "PUT" -> builder.put(rb ?: JSONObject().toString().toRequestBody(jsonMedia))
-            "PATCH" -> builder.patch(rb ?: JSONObject().toString().toRequestBody(jsonMedia))
-            "DELETE" -> builder.delete(rb)
+            "POST" -> builder.post(rb!!)
+            "PUT" -> builder.put(rb!!)
+            "PATCH" -> builder.patch(rb!!)
+            "DELETE" -> builder.delete()
         }
 
-        client.newCall(builder.build()).execute().use { resp ->
-            val text = resp.body?.string() ?: ""
-            return if (resp.isSuccessful) text else "XATOLIK ${resp.code}: $text"
+        return try {
+            client.newCall(builder.build()).execute().use { resp ->
+                val text = resp.body?.string() ?: ""
+                if (resp.isSuccessful) text else "XATOLIK ${resp.code}: $text"
+            }
+        } catch (e: Exception) {
+            "ALOQA XATOSI: ${e.message}"
         }
     }
 
-    // --- Repositories ---
-    fun listRepos(): String = req("GET", "/user/repos?per_page=100&sort=updated")
-    fun getRepo(fullName: String): String = req("GET", "/repos/$fullName")
-    fun createRepo(name: String, description: String, isPrivate: Boolean): String {
-        val body = JSONObject().apply {
-            put("name", name)
-            put("description", description)
-            put("private", isPrivate)
-        }
-        return req("POST", "/user/repos", body)
-    }
-    fun updateRepo(fullName: String, body: JSONObject): String = req("PATCH", "/repos/$fullName", body)
-    fun deleteRepo(fullName: String): String = req("DELETE", "/repos/$fullName")
+    // Repos
+    fun listRepos() = req("GET", "/user/repos?per_page=100&sort=updated")
+    fun getRepo(fullName: String) = req("GET", "/repos/$fullName")
+    fun createRepo(name: String, desc: String, private: Boolean) = 
+        req("POST", "/user/repos", JSONObject().put("name", name).put("description", desc).put("private", private))
+    fun deleteRepo(fullName: String) = req("DELETE", "/repos/$fullName")
 
-    // --- Pull Requests ---
-    fun listPullRequests(fullName: String): String = req("GET", "/repos/$fullName/pulls")
-    fun createPullRequest(fullName: String, title: String, head: String, base: String, bodyText: String): String {
-        val body = JSONObject().apply {
-            put("title", title)
-            put("head", head)
-            put("base", base)
-            put("body", bodyText)
-        }
-        return req("POST", "/repos/$fullName/pulls", body)
-    }
-    fun mergePullRequest(fullName: String, prNumber: Int): String = req("PUT", "/repos/$fullName/pulls/$prNumber/merge")
+    // Actions
+    fun listActionsRuns(fullName: String) = req("GET", "/repos/$fullName/actions/runs?per_page=20")
+    fun getActionRunLog(fullName: String, runId: Long) = req("GET", "/repos/$fullName/actions/runs/$runId/logs")
+    fun rerunWorkflow(fullName: String, runId: Long) = req("POST", "/repos/$fullName/actions/runs/$runId/rerun")
 
-    // --- Issues ---
-    fun listIssues(fullName: String): String = req("GET", "/repos/$fullName/issues?state=all")
-    fun createIssue(fullName: String, title: String, bodyText: String): String {
-        val body = JSONObject().apply { put("title", title); put("body", bodyText) }
-        return req("POST", "/repos/$fullName/issues", body)
-    }
-    fun closeIssue(fullName: String, issueNumber: Int): String {
-        val body = JSONObject().put("state", "closed")
-        return req("PATCH", "/repos/$fullName/issues/$issueNumber", body)
-    }
+    // PRs & Issues
+    fun listPullRequests(fullName: String) = req("GET", "/repos/$fullName/pulls")
+    fun listIssues(fullName: String) = req("GET", "/repos/$fullName/issues")
 
-    // --- Contents & Commits ---
-    fun listCommits(fullName: String): String = req("GET", "/repos/$fullName/commits?per_page=20")
-    fun getFileContent(fullName: String, path: String): String = req("GET", "/repos/$fullName/contents/$path")
+    // Files
+    fun getFileContent(fullName: String, path: String) = req("GET", "/repos/$fullName/contents/$path")
     fun createOrUpdateFile(fullName: String, path: String, content: String, message: String): String {
         var sha: String? = null
         val existing = req("GET", "/repos/$fullName/contents/$path")
         if (!existing.startsWith("XATOLIK")) {
-            try { sha = JSONObject(existing).getString("sha") } catch (_: Exception) { }
+            try { sha = JSONObject(existing).getString("sha") } catch (_: Exception) {}
         }
         val body = JSONObject().apply {
             put("message", message)
@@ -96,36 +79,5 @@ class GitHubClient(private val token: String) {
         return req("PUT", "/repos/$fullName/contents/$path", body)
     }
 
-    // --- Releases ---
-    fun listReleases(fullName: String): String = req("GET", "/repos/$fullName/releases")
-    fun createRelease(fullName: String, tagName: String, name: String, bodyText: String): String {
-        val body = JSONObject().apply {
-            put("tag_name", tagName)
-            put("name", name)
-            put("body", bodyText)
-        }
-        return req("POST", "/repos/$fullName/releases", body)
-    }
-
-    // --- Collaborators & Teams ---
-    fun listCollaborators(fullName: String): String = req("GET", "/repos/$fullName/collaborators")
-    fun addCollaborator(fullName: String, username: String, permission: String): String {
-        val body = JSONObject().put("permission", permission)
-        return req("PUT", "/repos/$fullName/collaborators/$username", body)
-    }
-
-    // --- Actions ---
-    fun listActionsRuns(fullName: String): String = req("GET", "/repos/$fullName/actions/runs?per_page=10")
-    fun getActionRun(fullName: String, runId: Long): String = req("GET", "/repos/$fullName/actions/runs/$runId")
-    fun rerunWorkflow(fullName: String, runId: Long): String = req("POST", "/repos/$fullName/actions/runs/$runId/rerun")
-
-    // --- Search & Notifications ---
-    fun searchRepos(query: String): String = req("GET", "/search/repositories?q=${java.net.URLEncoder.encode(query, "UTF-8")}")
-    fun searchCode(query: String): String = req("GET", "/search/code?q=${java.net.URLEncoder.encode(query, "UTF-8")}")
-    fun listNotifications(): String = req("GET", "/notifications")
-    fun starRepo(fullName: String): String = req("PUT", "/user/starred/$fullName")
-    fun unstarRepo(fullName: String): String = req("DELETE", "/user/starred/$fullName")
-
-    // --- User Info ---
-    fun getAuthenticatedUser(): String = req("GET", "/user")
+    fun getAuthenticatedUser() = req("GET", "/user")
 }
