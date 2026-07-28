@@ -8,10 +8,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-/**
- * GitHub akkauntni boshqarish uchun oddiy REST wrapper.
- * Har bir metod natijani JSON string ko'rinishida qaytaradi (Gemini'ga qaytarish uchun qulay).
- */
 class GitHubClient(private val token: String) {
 
     private val client = OkHttpClient.Builder()
@@ -22,11 +18,7 @@ class GitHubClient(private val token: String) {
     private val jsonMedia = "application/json".toMediaType()
     private val base = "https://api.github.com"
 
-    private fun req(
-        method: String,
-        path: String,
-        body: JSONObject? = null
-    ): String {
+    private fun req(method: String, path: String, body: JSONObject? = null): String {
         val urlStr = if (path.startsWith("http")) path else "$base$path"
         val builder = Request.Builder()
             .url(urlStr)
@@ -49,10 +41,9 @@ class GitHubClient(private val token: String) {
         }
     }
 
+    // --- Repositories ---
     fun listRepos(): String = req("GET", "/user/repos?per_page=100&sort=updated")
-
     fun getRepo(fullName: String): String = req("GET", "/repos/$fullName")
-
     fun createRepo(name: String, description: String, isPrivate: Boolean): String {
         val body = JSONObject().apply {
             put("name", name)
@@ -61,30 +52,41 @@ class GitHubClient(private val token: String) {
         }
         return req("POST", "/user/repos", body)
     }
+    fun updateRepo(fullName: String, body: JSONObject): String = req("PATCH", "/repos/$fullName", body)
+    fun deleteRepo(fullName: String): String = req("DELETE", "/repos/$fullName")
 
-    fun listIssues(fullName: String): String = req("GET", "/repos/$fullName/issues?state=open")
-
-    fun createIssue(fullName: String, title: String, bodyText: String): String {
+    // --- Pull Requests ---
+    fun listPullRequests(fullName: String): String = req("GET", "/repos/$fullName/pulls")
+    fun createPullRequest(fullName: String, title: String, head: String, base: String, bodyText: String): String {
         val body = JSONObject().apply {
             put("title", title)
+            put("head", head)
+            put("base", base)
             put("body", bodyText)
         }
+        return req("POST", "/repos/$fullName/pulls", body)
+    }
+    fun mergePullRequest(fullName: String, prNumber: Int): String = req("PUT", "/repos/$fullName/pulls/$prNumber/merge")
+
+    // --- Issues ---
+    fun listIssues(fullName: String): String = req("GET", "/repos/$fullName/issues?state=all")
+    fun createIssue(fullName: String, title: String, bodyText: String): String {
+        val body = JSONObject().apply { put("title", title); put("body", bodyText) }
         return req("POST", "/repos/$fullName/issues", body)
     }
+    fun closeIssue(fullName: String, issueNumber: Int): String {
+        val body = JSONObject().put("state", "closed")
+        return req("PATCH", "/repos/$fullName/issues/$issueNumber", body)
+    }
 
+    // --- Contents & Commits ---
     fun listCommits(fullName: String): String = req("GET", "/repos/$fullName/commits?per_page=20")
-
-    fun getFileContent(fullName: String, path: String): String =
-        req("GET", "/repos/$fullName/contents/$path")
-
-    /** Fayl yaratish yoki yangilash. Agar fayl mavjud bo'lsa, avval SHA olinadi. */
+    fun getFileContent(fullName: String, path: String): String = req("GET", "/repos/$fullName/contents/$path")
     fun createOrUpdateFile(fullName: String, path: String, content: String, message: String): String {
         var sha: String? = null
         val existing = req("GET", "/repos/$fullName/contents/$path")
         if (!existing.startsWith("XATOLIK")) {
-            try {
-                sha = JSONObject(existing).getString("sha")
-            } catch (_: Exception) { }
+            try { sha = JSONObject(existing).getString("sha") } catch (_: Exception) { }
         }
         val body = JSONObject().apply {
             put("message", message)
@@ -94,16 +96,36 @@ class GitHubClient(private val token: String) {
         return req("PUT", "/repos/$fullName/contents/$path", body)
     }
 
-    fun starRepo(fullName: String): String = req("PUT", "/user/starred/$fullName")
+    // --- Releases ---
+    fun listReleases(fullName: String): String = req("GET", "/repos/$fullName/releases")
+    fun createRelease(fullName: String, tagName: String, name: String, bodyText: String): String {
+        val body = JSONObject().apply {
+            put("tag_name", tagName)
+            put("name", name)
+            put("body", bodyText)
+        }
+        return req("POST", "/repos/$fullName/releases", body)
+    }
 
-    fun searchCode(query: String): String =
-        req("GET", "/search/code?q=${java.net.URLEncoder.encode(query, "UTF-8")}")
+    // --- Collaborators & Teams ---
+    fun listCollaborators(fullName: String): String = req("GET", "/repos/$fullName/collaborators")
+    fun addCollaborator(fullName: String, username: String, permission: String): String {
+        val body = JSONObject().put("permission", permission)
+        return req("PUT", "/repos/$fullName/collaborators/$username", body)
+    }
 
-    fun listNotifications(): String = req("GET", "/notifications")
-
-    fun deleteRepo(fullName: String): String = req("DELETE", "/repos/$fullName")
-
+    // --- Actions ---
     fun listActionsRuns(fullName: String): String = req("GET", "/repos/$fullName/actions/runs?per_page=10")
+    fun getActionRun(fullName: String, runId: Long): String = req("GET", "/repos/$fullName/actions/runs/$runId")
+    fun rerunWorkflow(fullName: String, runId: Long): String = req("POST", "/repos/$fullName/actions/runs/$runId/rerun")
 
-    fun getActionRunLog(fullName: String, runId: Long): String = req("GET", "/repos/$fullName/actions/runs/$runId/logs")
+    // --- Search & Notifications ---
+    fun searchRepos(query: String): String = req("GET", "/search/repositories?q=${java.net.URLEncoder.encode(query, "UTF-8")}")
+    fun searchCode(query: String): String = req("GET", "/search/code?q=${java.net.URLEncoder.encode(query, "UTF-8")}")
+    fun listNotifications(): String = req("GET", "/notifications")
+    fun starRepo(fullName: String): String = req("PUT", "/user/starred/$fullName")
+    fun unstarRepo(fullName: String): String = req("DELETE", "/user/starred/$fullName")
+
+    // --- User Info ---
+    fun getAuthenticatedUser(): String = req("GET", "/user")
 }
