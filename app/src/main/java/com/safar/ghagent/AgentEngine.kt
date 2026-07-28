@@ -84,6 +84,20 @@ class AgentEngine(
 
         list.put(fn("list_notifications", "Foydalanuvchining GitHub bildirishnomalarini oladi", JSONObject()))
 
+        list.put(fn("delete_repo", "Repositoryni butunlay o'chirib tashlaydi",
+            JSONObject().put("full_name", strProp("owner/repo formatida")),
+            JSONArray().put("full_name")))
+
+        list.put(fn("list_actions_runs", "Repodagi GitHub Actions build (run) ro'yxatini oladi",
+            JSONObject().put("full_name", strProp("owner/repo formatida")),
+            JSONArray().put("full_name")))
+
+        list.put(fn("get_action_run_log", "GitHub Actions build xatolarini (log) ko'rish uchun log URL oladi",
+            JSONObject()
+                .put("full_name", strProp("owner/repo formatida"))
+                .put("run_id", JSONObject().put("type", "INTEGER").put("description", "Run ID raqami")),
+            JSONArray().put("full_name").put("run_id")))
+
         return list
     }
 
@@ -111,6 +125,9 @@ class AgentEngine(
                 "star_repo" -> github.starRepo(a.getString("full_name"))
                 "search_code" -> github.searchCode(a.getString("query"))
                 "list_notifications" -> github.listNotifications()
+                "delete_repo" -> github.deleteRepo(a.getString("full_name"))
+                "list_actions_runs" -> github.listActionsRuns(a.getString("full_name"))
+                "get_action_run_log" -> github.getActionRunLog(a.getString("full_name"), a.getLong("run_id"))
                 else -> "Noma'lum funksiya: ${call.name}"
             }
         } catch (e: Exception) {

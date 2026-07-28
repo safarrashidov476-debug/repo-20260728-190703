@@ -100,4 +100,10 @@ class GitHubClient(private val token: String) {
         req("GET", "/search/code?q=${java.net.URLEncoder.encode(query, "UTF-8")}")
 
     fun listNotifications(): String = req("GET", "/notifications")
+
+    fun deleteRepo(fullName: String): String = req("DELETE", "/repos/$fullName")
+
+    fun listActionsRuns(fullName: String): String = req("GET", "/repos/$fullName/actions/runs?per_page=10")
+
+    fun getActionRunLog(fullName: String, runId: Long): String = req("GET", "/repos/$fullName/actions/runs/$runId/logs")
 }
