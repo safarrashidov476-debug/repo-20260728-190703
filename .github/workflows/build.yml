@@ -23,11 +23,20 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+      - name: Build with Gradle
+        run: |
+          chmod +x ./gradlew || echo "gradlew topilmadi, tizimdagi gradle ishlatiladi"
+          if [ -f ./gradlew ]; then
+            ./gradlew assembleDebug --no-daemon
+          else
+            gradle assembleDebug --no-daemon
+          fi
 
-      - name: Upload APK
+      - name: Find and Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+            **/build/outputs/apk/**/*.apk
