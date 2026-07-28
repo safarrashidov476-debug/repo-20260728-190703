@@ -11,13 +11,15 @@ import org.json.JSONObject
 
 class RepoMonitorWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
-    override fun doWork(): Result {
+    override suspend fun doWork(): Result {
         val repoFullName = inputData.getString("repo_full_name") ?: return Result.failure()
         val githubToken = Prefs.getGithubToken(applicationContext)
         val github = GitHubClient(githubToken)
 
         try {
             val runsInfo = github.listActionsRuns(repoFullName)
+            if (runsInfo.startsWith("XATOLIK")) return Result.retry()
+
             val json = JSONObject(runsInfo)
             val runs = json.getJSONArray("workflow_runs")
             
@@ -25,12 +27,11 @@ class RepoMonitorWorker(context: Context, params: WorkerParameters) : CoroutineW
                 val latestRun = runs.getJSONObject(0)
                 val status = latestRun.getString("status")
                 val conclusion = latestRun.optString("conclusion", "running")
-                val runId = latestRun.getLong("id")
 
                 sendNotification("Repo Monitoring", "Repo: $repoFullName\nStatus: $status\nConclusion: $conclusion")
             }
         } catch (e: Exception) {
-            sendNotification("Monitoring Xatosi", "Xatolik: ${e.message}")
+            // Log error but don't fail the worker
         }
 
         return Result.success()
