@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity() {
 
         val gemini = GeminiClient(Prefs.getGeminiKey(this), Prefs.getGeminiModel(this))
         val github = GitHubClient(Prefs.getGithubToken(this))
-        val created = AgentEngine(gemini, github)
+        val created = AgentEngine(gemini, github, this)
         agent = created
         return created
     }
