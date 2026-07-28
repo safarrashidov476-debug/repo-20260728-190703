@@ -9,18 +9,19 @@ import android.content.Context
 class AgentEngine(
     private val gemini: GeminiClient,
     private val github: GitHubClient,
-    private val context: android.content.Context? = null
+    private val context: Context? = null
 ) {
     private val history = JSONArray()
 
     private val systemInstruction = """
         Siz foydalanuvchining GitHub akkauntini TO'LIQ boshqaradigan super AI agentsiz.
-        Sizda repozitoriyalar yaratish, o'chirish, PRlar bilan ishlash, issue'larni boshqarish, release'lar yaratish,
-        collaborator'larni qo'shish va Actions'larni boshqarish huquqi bor.
-        Shuningdek, siz ZIP fayllarni avtomatik ochib yuklay olasiz va loyihalarni vaqt bo'yicha monitoring qila olasiz.
-        Monitoring o'rnatilganda, foydalanuvchi ilovadan tashqarida bo'lsa ham push-bildirishnoma yuboriladi.
-        Har doim mavjud funksiyalardan (tools) foydalanib amal bajaring.
-        Javobni foydalanuvchi tushunadigan tilda (o'zbekcha) aniq va professional tarzda bering.
+        Sizda barcha huquqlar bor: Repos, PRs, Issues, Actions, Releases, Collaborators, ZIP upload va Monitoring.
+        
+        MUHIM: Agar foydalanuvchi GitHub URL yuborsa (masalan, .../actions), uni tahlil qiling va tegishli funksiyani chaqiring.
+        Masalan, URL /actions bilan tugasa, 'list_runs' funksiyasini ishlating.
+        
+        Har doim mavjud funksiyalardan (tools) foydalaning. Taxmin qilmang.
+        Javobni o'zbek tilida, aniq va professional bering.
     """.trimIndent()
 
     private fun tools(): JSONArray {
@@ -41,29 +42,28 @@ class AgentEngine(
 
         val list = JSONArray()
 
-        // Repos
+        // Repositories
         list.put(fn("list_repos", "Foydalanuvchining barcha repositoriyalarini ro'yxatlaydi", JSONObject()))
-        list.put(fn("create_repo", "Yangi repository yaratadi",
-            JSONObject().put("name", strProp("Repo nomi")).put("description", strProp("Tavsif")).put("is_private", boolProp("Private?")),
-            JSONArray().put("name")))
-        list.put(fn("delete_repo", "Repositoryni butunlay o'chiradi",
-            JSONObject().put("full_name", strProp("owner/repo")), JSONArray().put("full_name")))
+        list.put(fn("get_repo", "Repo haqida ma'lumot", JSONObject().put("full_name", strProp("owner/repo")), JSONArray().put("full_name")))
+        list.put(fn("create_repo", "Yangi repo yaratadi", JSONObject().put("name", strProp("Nomi")).put("description", strProp("Tavsif")), JSONArray().put("name")))
+        list.put(fn("delete_repo", "Reponi o'chiradi", JSONObject().put("full_name", strProp("owner/repo")), JSONArray().put("full_name")))
+
+        // Actions
+        list.put(fn("list_runs", "GitHub Actions buildlarini (runs) ko'radi", JSONObject().put("full_name", strProp("owner/repo")), JSONArray().put("full_name")))
+        list.put(fn("get_run_log", "Build xatolarini ko'rish uchun loglarni oladi", JSONObject().put("full_name", strProp("owner/repo")).put("run_id", intProp("Run ID")), JSONArray().put("full_name").put("run_id")))
+        list.put(fn("rerun_workflow", "Buildni qayta ishga tushiradi", JSONObject().put("full_name", strProp("owner/repo")).put("run_id", intProp("Run ID")), JSONArray().put("full_name").put("run_id")))
+
+        // Pull Requests & Issues
+        list.put(fn("list_prs", "Pull requestlarni ko'radi", JSONObject().put("full_name", strProp("owner/repo")), JSONArray().put("full_name")))
+        list.put(fn("list_issues", "Issue'larni ko'radi", JSONObject().put("full_name", strProp("owner/repo")), JSONArray().put("full_name")))
+
+        // Files
+        list.put(fn("get_file", "Faylni o'qiydi", JSONObject().put("full_name", strProp("owner/repo")).put("path", strProp("Yo'l")), JSONArray().put("full_name").put("path")))
+        list.put(fn("write_file", "Fayl yozadi", JSONObject().put("full_name", strProp("owner/repo")).put("path", strProp("Yo'l")).put("content", strProp("Matn")).put("message", strProp("Xabar")), JSONArray().put("full_name").put("path").put("content").put("message")))
 
         // Monitoring
-        list.put(fn("start_monitoring", "Repozitoriyani vaqt bo'yicha monitoring qilishni boshlaydi",
-            JSONObject()
-                .put("full_name", strProp("owner/repo"))
-                .put("interval_minutes", intProp("Tekshirish oralig'i (daqiqa)")),
-            JSONArray().put("full_name").put("interval_minutes")))
-        
-        list.put(fn("stop_monitoring", "Monitoringni to'xtatadi",
-            JSONObject().put("full_name", strProp("owner/repo")), JSONArray().put("full_name")))
-
-        // PRs, Issues, Files, etc. (Existing tools...)
-        list.put(fn("list_prs", "Pull requestlarni ro'yxatlaydi", JSONObject().put("full_name", strProp("owner/repo")), JSONArray().put("full_name")))
-        list.put(fn("create_issue", "Yangi issue yaratadi", JSONObject().put("full_name", strProp("owner/repo")).put("title", strProp("Sarlavha")), JSONArray().put("full_name").put("title")))
-        list.put(fn("write_file", "Fayl yaratadi yoki yangilaydi", JSONObject().put("full_name", strProp("owner/repo")).put("path", strProp("Yo'l")).put("content", strProp("Matn")).put("message", strProp("Commit xabari")), JSONArray().put("full_name").put("path").put("content").put("message")))
-        list.put(fn("get_my_info", "O'zim haqimda ma'lumot olaman", JSONObject()))
+        list.put(fn("start_monitoring", "Reponi monitoring qilishni boshlaydi", JSONObject().put("full_name", strProp("owner/repo")).put("interval_minutes", intProp("Daqiqa")), JSONArray().put("full_name").put("interval_minutes")))
+        list.put(fn("stop_monitoring", "Monitoringni to'xtatadi", JSONObject().put("full_name", strProp("owner/repo")), JSONArray().put("full_name")))
 
         return list
     }
@@ -73,36 +73,36 @@ class AgentEngine(
         return try {
             when (call.name) {
                 "list_repos" -> github.listRepos()
+                "get_repo" -> github.getRepo(a.getString("full_name"))
                 "create_repo" -> github.createRepo(a.getString("name"), a.optString("description", ""), a.optBoolean("is_private", false))
                 "delete_repo" -> github.deleteRepo(a.getString("full_name"))
+                "list_runs" -> github.listActionsRuns(a.getString("full_name"))
+                "get_run_log" -> github.getActionRunLog(a.getString("full_name"), a.getLong("run_id"))
+                "rerun_workflow" -> github.rerunWorkflow(a.getString("full_name"), a.getLong("run_id"))
+                "list_prs" -> github.listPullRequests(a.getString("full_name"))
+                "list_issues" -> github.listIssues(a.getString("full_name"))
+                "get_file" -> github.getFileContent(a.getString("full_name"), a.getString("path"))
+                "write_file" -> github.createOrUpdateFile(a.getString("full_name"), a.getString("path"), a.getString("content"), a.getString("message"))
                 "start_monitoring" -> startMonitoring(a.getString("full_name"), a.getInt("interval_minutes"))
                 "stop_monitoring" -> stopMonitoring(a.getString("full_name"))
-                "get_my_info" -> github.getAuthenticatedUser()
-                // Other functions...
                 else -> "Noma'lum funksiya"
             }
         } catch (e: Exception) { "Xatolik: ${e.message}" }
     }
 
     private fun startMonitoring(repoFullName: String, interval: Int): String {
-        if (context == null) return "Context mavjud emas, monitoringni boshlab bo'lmaydi."
-        
+        if (context == null) return "Xatolik: Context topilmadi."
         val workRequest = PeriodicWorkRequestBuilder<RepoMonitorWorker>(interval.toLong(), TimeUnit.MINUTES)
             .setInputData(workDataOf("repo_full_name" to repoFullName))
             .build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "monitor_$repoFullName",
-            ExistingPeriodicWorkPolicy.UPDATE,
-            workRequest
-        )
-        return "$repoFullName uchun monitoring $interval daqiqada bir marta o'rnatildi."
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork("monitor_$repoFullName", ExistingPeriodicWorkPolicy.UPDATE, workRequest)
+        return "$repoFullName monitoringi har $interval daqiqada ishga tushirildi."
     }
 
     private fun stopMonitoring(repoFullName: String): String {
-        if (context == null) return "Context mavjud emas."
+        if (context == null) return "Xatolik: Context topilmadi."
         WorkManager.getInstance(context).cancelUniqueWork("monitor_$repoFullName")
-        return "$repoFullName uchun monitoring to'xtatildi."
+        return "$repoFullName monitoringi to'xtatildi."
     }
 
     fun handleUserMessage(userText: String): String {
@@ -129,6 +129,6 @@ class AgentEngine(
             }
             history.put(JSONObject().apply { put("role", "user"); put("parts", responseParts) })
         }
-        return "Juda ko'p qadam."
+        return "Amal bajarilmadi."
     }
 }
